@@ -67,10 +67,8 @@ export class WebullCustomSDK {
 
   async getAccountList() {
     const targetPath = "/trading/accounts/list";
-    const headers = this.headerCreator.createRequestHeaders(undefined, targetPath, {});
-    const baseUrl = this.targetUrl.includes("://")
-      ? this.targetUrl
-      : `https://${this.targetUrl}`;
+    const headers = this.headerCreator.createRequestHeaders(null, targetPath, {});
+    const baseUrl = this.targetUrl.includes("://") ? this.targetUrl : `https://${this.targetUrl}`;
 
     const response = await axios.get(`${baseUrl}${targetPath}`, { headers });
     return response.data;
@@ -120,5 +118,22 @@ export class WebullCustomSDK {
       console.error("Error when attempting to fetch client token", error);
     }
   }
-}
 
+  // Todo....
+  // need to get trading/assets/balances/get
+  async getAccountAssets(account_id) {
+    const queryParams = {
+      "account_id": account_id
+    }
+    const targetPath = "/trading/assets/balances/get";
+    const headers = this.headerCreator.createRequestHeaders(null, targetPath, queryParams);
+    // I get why this logic is here...but it should be in the constructor imo...
+    const baseUrl = this.targetUrl.includes("://") ? this.targetUrl : `https://${this.targetUrl}`;
+
+    const response = await axios.get(`${baseUrl}${targetPath}`, {
+      headers,
+      params: queryParams,
+    });
+    return response.data;
+  }
+}
