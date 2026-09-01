@@ -7,7 +7,6 @@ const port = 5002;
 // Middleware goes here
 // What is middleware anyway?
 
-
 // Routes go here
 // Routes should feed the front-end
 

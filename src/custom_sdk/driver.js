@@ -6,9 +6,6 @@ import { buildSignatureParts, assembleBaseSignatureString, createInitHeaders } f
 // const secret = popperplantpowder343EU7;
 // const sessionhash = createHmac('SHA1', secret);
 
-// continue on https://developer.webull.com/apis/docs/authentication/signature
-// aimed endpoint https://developer.webull.com/apis/docs/reference/broker-market-data-api/create-client-token
-
 // appKey and secret should be available at the ENV level as globals....
 class HeaderCreator {
   constructor(appKey, secret, host) {
@@ -52,7 +49,7 @@ class HeaderCreator {
   }
 }
 
-export class WebullCustomSDK {
+export class WebullCustomClient {
   constructor(appKey, secretKey, targetUrl) {
     this.appKey = appKey;
     this.secretKey = secretKey;
@@ -126,6 +123,26 @@ export class WebullCustomSDK {
       "account_id": account_id
     }
     const targetPath = "/trading/assets/balances/get";
+    const headers = this.headerCreator.createRequestHeaders(null, targetPath, queryParams);
+    // I get why this logic is here...but it should be in the constructor imo...
+    const baseUrl = this.targetUrl.includes("://") ? this.targetUrl : `https://${this.targetUrl}`;
+
+    const response = await axios.get(`${baseUrl}${targetPath}`, {
+      headers,
+      params: queryParams,
+    });
+    return response.data;
+  }
+
+  // Not sure what the difference is here...
+  // You're repeating yourself here, consider a different structure
+  async getAccountPositions(account_id) {
+    const queryParams = {
+      "account_id": account_id
+    }
+
+    const targetPath = "/trading/assets/positions/list"
+
     const headers = this.headerCreator.createRequestHeaders(null, targetPath, queryParams);
     // I get why this logic is here...but it should be in the constructor imo...
     const baseUrl = this.targetUrl.includes("://") ? this.targetUrl : `https://${this.targetUrl}`;
