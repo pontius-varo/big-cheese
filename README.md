@@ -1,6 +1,9 @@
 # Big Cheese Application
 An application that hooks up to the Webull API to serve data to a front-end dash board
 
+## Plan
+finish rough version (get it to work), then do v2 going by standards
+
 ## Road map
 Version 1 of this application should have the following:
 
@@ -18,6 +21,7 @@ Version 1 of this application should have the following:
         - historical account balances total
     - Run an hourly process to mine webull for account information
         - when connected to multiple accounts, should cycle through available acounts
+
 ## References
 NOTE: use these for v2
 Use https://github.com/goldbergyoni/nodebestpractices to figure out file structure (best practices)

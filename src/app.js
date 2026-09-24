@@ -1,24 +1,29 @@
 import express from 'express';
-import { config } from 'dotenv';
+import { PortfolioRepository } from './data/portfolio_repository.js';
+import { createPortfolioRouter } from './routes/portfolio_routes.js';
 
-const app = express();
-const port = 5002;
+export function createApp(db) {
+  const app = express();
+  const portfolioRepository = new PortfolioRepository(db);
 
-// Middleware goes here
-// What is middleware anyway?
+  app.disable('x-powered-by');
+  app.use(express.json());
 
-// Routes go here
-// Routes should feed the front-end
-
-const server = app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
-});
-
-// Catch process failures
-process.on("unhandledRejection", async (err) => {
-  console.error(err);
-  server.close(async () => {
-    // Kill process gracefully
-    process.exit(1);
+  app.get('/health', (_request, response) => {
+    db.prepare('SELECT 1').get();
+    response.json({ status: 'ok' });
   });
-});
+  app.use('/api', createPortfolioRouter(portfolioRepository));
+
+  app.use((_request, response) => {
+    response.status(404).json({ error: 'Route not found' });
+  });
+  app.use((error, _request, response, _next) => {
+    console.error('API request failed', error);
+    response.status(error.status ?? 500).json({
+      error: error.status && error.status < 500 ? error.message : 'Internal server error',
+    });
+  });
+
+  return app;
+}

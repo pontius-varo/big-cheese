@@ -18,7 +18,13 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "n/a"
+    "start": "node src/server.js",
+    "worker": "node src/webull_worker.js",
+    "worker:once": "node src/webull_worker.js --once",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   },
   "dependencies": {
     "axios": "^1.20.0",
