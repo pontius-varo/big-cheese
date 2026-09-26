@@ -48,6 +48,15 @@ test('GET /health reports database availability', async () => {
   assert.deepEqual(await response.json(), { status: 'ok' });
 });
 
+test('GET / serves the dashboard', async () => {
+  const response = await fetch(`${baseUrl}/`);
+  const body = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/html/);
+  assert.match(body, /Big Cheese/);
+  assert.match(body, /\/js\/app\.js/);
+});
+
 test('GET /api/summary returns total and individual account values', async () => {
   const response = await fetch(`${baseUrl}/api/summary`);
   const body = await response.json();

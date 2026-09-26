@@ -1,6 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { PortfolioRepository } from './data/portfolio_repository.js';
 import { createPortfolioRouter } from './routes/portfolio_routes.js';
+
+const publicDirectory = fileURLToPath(new URL('../public/', import.meta.url));
 
 export function createApp(db) {
   const app = express();
@@ -8,6 +11,7 @@ export function createApp(db) {
 
   app.disable('x-powered-by');
   app.use(express.json());
+  app.use(express.static(publicDirectory));
 
   app.get('/health', (_request, response) => {
     db.prepare('SELECT 1').get();

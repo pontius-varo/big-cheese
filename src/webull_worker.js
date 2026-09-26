@@ -71,7 +71,33 @@ function numericValue(object, keys) {
   return Number.isFinite(number) ? number : null;
 }
 
-// Transform API responses into stable records while retaining the original payloads.
+function organizePosition(position) {
+  const quantity = numericValue(
+    position, ['quantity', 'qty', 'position', 'position_qty', 'positionQty'],
+  );
+  let marketValue = numericValue(position, ['market_value', 'marketValue']);
+  if (marketValue === null) {
+    const lastPrice = numericValue(position, ['last_price', 'lastPrice', 'market_price', 'marketPrice']);
+    if (quantity !== null && lastPrice !== null) marketValue = quantity * lastPrice;
+  }
+
+  return {
+    positionId: firstValue(position, ['position_id', 'positionId']),
+    symbol: firstValue(position, ['symbol', 'ticker', 'instrument_id', 'instrumentId']),
+    instrumentType: firstValue(position, ['instrument_type', 'instrumentType']),
+    currency: firstValue(position, ['currency', 'currency_code', 'currencyCode']),
+    quantity,
+    lastPrice: numericValue(position, ['last_price', 'lastPrice', 'market_price', 'marketPrice']),
+    costPrice: numericValue(position, ['cost_price', 'costPrice', 'average_cost', 'averageCost']),
+    marketValue,
+    unrealizedProfitLoss: numericValue(position, [
+      'unrealized_profit_loss', 'unrealizedProfitLoss',
+    ]),
+    eventOutcome: firstValue(position, ['event_outcome', 'eventOutcome']),
+  };
+}
+
+// Transform Webull API responses into records matching the database schema.
 export function organizeAccountData(accountData, collectedAt = new Date().toISOString()) {
   if (!accountData?.sourceId || !Array.isArray(accountData.subAccounts)) {
     throw new TypeError('accountData must contain sourceId and subAccounts');
@@ -85,22 +111,38 @@ export function organizeAccountData(accountData, collectedAt = new Date().toISOS
       if (!accountId) throw new Error('Webull returned an account without an account ID');
 
       const asset = Array.isArray(assets) ? assets[0] : (assets?.data ?? assets ?? {});
+      const netLiquidationValue = numericValue(asset, [
+        'total_net_liquidation_value', 'totalNetLiquidationValue',
+        'net_liquidation_value', 'netLiquidationValue',
+        'total_asset', 'totalAsset', 'account_value', 'accountValue',
+      ]);
+      const cashBalance = numericValue(asset, ['total_cash_balance', 'totalCashBalance']);
+      const marketValue = numericValue(asset, ['total_market_value', 'totalMarketValue']);
       return {
         accountId,
+        accountNumber: firstValue(subAccount, ['account_number', 'accountNumber']),
         accountType: firstValue(subAccount, ['account_type', 'accountType', 'type']),
-        currency: firstValue(asset, ['currency', 'currency_code', 'currencyCode']),
-        totalValue: numericValue(asset, [
-          'total_market_value', 'totalMarketValue', 'net_liquidation_value',
-          'netLiquidationValue', 'total_asset', 'totalAsset', 'account_value', 'accountValue',
+        currency: firstValue(asset, [
+          'total_asset_currency', 'totalAssetCurrency', 'currency', 'currency_code', 'currencyCode',
         ]),
-        assets,
-        account: subAccount,
-        positions: asArray(positions).map((position) => ({
-          symbol: firstValue(position, ['symbol', 'ticker', 'instrument_id', 'instrumentId']),
-          quantity: numericValue(position, ['quantity', 'qty', 'position', 'position_qty', 'positionQty']),
-          marketValue: numericValue(position, ['market_value', 'marketValue']),
-          raw: position,
-        })),
+        cashBalance,
+        marketValue,
+        netLiquidationValue: netLiquidationValue ?? (
+          cashBalance !== null || marketValue !== null
+            ? (cashBalance ?? 0) + (marketValue ?? 0)
+            : null
+        ),
+        unrealizedProfitLoss: numericValue(asset, [
+          'total_unrealized_profit_loss', 'totalUnrealizedProfitLoss',
+        ]),
+        dayProfitLoss: numericValue(asset, ['total_day_profit_loss', 'totalDayProfitLoss']),
+        maintenanceMargin: numericValue(asset, ['maintenance_margin', 'maintenanceMargin']),
+        marginExcess: numericValue(asset, ['margin_excess', 'marginExcess']),
+        marginRatio: numericValue(asset, ['margin_ratio', 'marginRatio']),
+        usedMargin: numericValue(asset, ['used_margin', 'usedMargin']),
+        initialMargin: numericValue(asset, ['init_margin', 'initialMargin']),
+        dayTradesLeft: numericValue(asset, ['day_trades_left', 'dayTradesLeft']),
+        positions: asArray(positions).map(organizePosition),
       };
     }),
   };
@@ -133,19 +175,24 @@ export function initializeDatabase(db) {
       account_count INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS accounts (
-      source_id TEXT NOT NULL, account_id TEXT NOT NULL, account_type TEXT,
-      raw_json TEXT NOT NULL, updated_at TEXT NOT NULL,
+      source_id TEXT NOT NULL, account_id TEXT NOT NULL, account_number TEXT,
+      account_type TEXT, updated_at TEXT NOT NULL,
       PRIMARY KEY (source_id, account_id)
     );
     CREATE TABLE IF NOT EXISTS balance_snapshots (
       run_id TEXT NOT NULL, source_id TEXT NOT NULL, account_id TEXT NOT NULL,
-      collected_at TEXT NOT NULL, currency TEXT, total_value REAL, raw_json TEXT NOT NULL,
+      collected_at TEXT NOT NULL, currency TEXT, cash_balance REAL, market_value REAL,
+      net_liquidation_value REAL, unrealized_profit_loss REAL, day_profit_loss REAL,
+      maintenance_margin REAL, margin_excess REAL, margin_ratio REAL,
+      used_margin REAL, initial_margin REAL, day_trades_left INTEGER,
       PRIMARY KEY (run_id, account_id), FOREIGN KEY (run_id) REFERENCES ingestion_runs(id)
     );
     CREATE TABLE IF NOT EXISTS position_snapshots (
       run_id TEXT NOT NULL, source_id TEXT NOT NULL, account_id TEXT NOT NULL,
-      position_index INTEGER NOT NULL, collected_at TEXT NOT NULL, symbol TEXT,
-      quantity REAL, market_value REAL, raw_json TEXT NOT NULL,
+      position_index INTEGER NOT NULL, position_id TEXT, collected_at TEXT NOT NULL,
+      symbol TEXT, instrument_type TEXT, currency TEXT, quantity REAL,
+      last_price REAL, cost_price REAL, market_value REAL,
+      unrealized_profit_loss REAL, event_outcome TEXT,
       PRIMARY KEY (run_id, account_id, position_index),
       FOREIGN KEY (run_id) REFERENCES ingestion_runs(id)
     );
@@ -160,34 +207,48 @@ export function pushAccountData(db, data) {
   const runId = randomUUID();
   const insertRun = db.prepare('INSERT INTO ingestion_runs (id, source_id, collected_at, account_count) VALUES (?, ?, ?, ?)');
   const upsertAccount = db.prepare(`
-    INSERT INTO accounts (source_id, account_id, account_type, raw_json, updated_at)
+    INSERT INTO accounts (source_id, account_id, account_number, account_type, updated_at)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(source_id, account_id) DO UPDATE SET
-      account_type = excluded.account_type, raw_json = excluded.raw_json,
+      account_number = excluded.account_number, account_type = excluded.account_type,
       updated_at = excluded.updated_at
   `);
   const insertBalance = db.prepare(`
     INSERT INTO balance_snapshots
-      (run_id, source_id, account_id, collected_at, currency, total_value, raw_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (run_id, source_id, account_id, collected_at, currency, cash_balance,
+       market_value, net_liquidation_value, unrealized_profit_loss, day_profit_loss,
+       maintenance_margin, margin_excess, margin_ratio, used_margin, initial_margin,
+       day_trades_left)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertPosition = db.prepare(`
     INSERT INTO position_snapshots
-      (run_id, source_id, account_id, position_index, collected_at, symbol, quantity, market_value, raw_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (run_id, source_id, account_id, position_index, position_id, collected_at,
+       symbol, instrument_type, currency, quantity, last_price, cost_price,
+       market_value, unrealized_profit_loss, event_outcome)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   db.exec('BEGIN IMMEDIATE');
   try {
     insertRun.run(runId, data.sourceId, data.collectedAt, data.accounts.length);
     for (const account of data.accounts) {
-      upsertAccount.run(data.sourceId, account.accountId, account.accountType,
-        JSON.stringify(account.account), data.collectedAt);
-      insertBalance.run(runId, data.sourceId, account.accountId, data.collectedAt,
-        account.currency, account.totalValue, JSON.stringify(account.assets));
+      upsertAccount.run(data.sourceId, account.accountId, account.accountNumber,
+        account.accountType, data.collectedAt);
+      insertBalance.run(
+        runId, data.sourceId, account.accountId, data.collectedAt, account.currency,
+        account.cashBalance, account.marketValue, account.netLiquidationValue,
+        account.unrealizedProfitLoss, account.dayProfitLoss, account.maintenanceMargin,
+        account.marginExcess, account.marginRatio, account.usedMargin,
+        account.initialMargin, account.dayTradesLeft,
+      );
       account.positions.forEach((position, index) => {
-        insertPosition.run(runId, data.sourceId, account.accountId, index, data.collectedAt,
-          position.symbol, position.quantity, position.marketValue, JSON.stringify(position.raw));
+        insertPosition.run(
+          runId, data.sourceId, account.accountId, index, position.positionId,
+          data.collectedAt, position.symbol, position.instrumentType, position.currency,
+          position.quantity, position.lastPrice, position.costPrice, position.marketValue,
+          position.unrealizedProfitLoss, position.eventOutcome,
+        );
       });
     }
     db.exec('COMMIT');

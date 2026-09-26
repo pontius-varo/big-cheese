@@ -31,10 +31,14 @@ class FakeClient {
     return [{ account_id: 'account-1', account_type: 'CASH' }];
   }
   async getAccountAssets() {
-    return { currency: 'USD', total_market_value: '125.50' };
+    return {
+      total_asset_currency: 'USD',
+      total_market_value: '25.50',
+      total_net_liquidation_value: '125.50',
+    };
   }
   async getAccountPositions() {
-    return [{ symbol: 'ABC', quantity: '2', market_value: '25.50' }];
+    return [{ symbol: 'ABC', quantity: '2', last_price: '12.75' }];
   }
 }
 
@@ -42,11 +46,13 @@ test('mineAccountData and organizeAccountData normalize API data', async () => {
   const raw = await mineAccountData('key', 'secret', env.TARGET_URL, FakeClient);
   const data = organizeAccountData(raw, '2026-01-01T00:00:00.000Z');
   assert.equal(data.accounts[0].accountId, 'account-1');
-  assert.equal(data.accounts[0].totalValue, 125.5);
-  assert.deepEqual(data.accounts[0].positions[0], {
-    symbol: 'ABC', quantity: 2, marketValue: 25.5,
-    raw: { symbol: 'ABC', quantity: '2', market_value: '25.50' },
-  });
+  assert.equal(data.accounts[0].currency, 'USD');
+  assert.equal(data.accounts[0].netLiquidationValue, 125.5);
+  assert.equal(data.accounts[0].marketValue, 25.5);
+  assert.equal(data.accounts[0].positions[0].symbol, 'ABC');
+  assert.equal(data.accounts[0].positions[0].quantity, 2);
+  assert.equal(data.accounts[0].positions[0].lastPrice, 12.75);
+  assert.equal(data.accounts[0].positions[0].marketValue, 25.5);
 });
 
 test('pushAccountData persists an atomic account snapshot', () => {
@@ -65,5 +71,14 @@ test('pushAccountData persists an atomic account snapshot', () => {
   assert.ok(runId);
   assert.equal(db.prepare('SELECT count(*) AS count FROM balance_snapshots').get().count, 1);
   assert.equal(db.prepare('SELECT count(*) AS count FROM position_snapshots').get().count, 1);
+  const balance = db.prepare(`
+    SELECT currency, net_liquidation_value FROM balance_snapshots
+  `).get();
+  assert.equal(balance.currency, 'USD');
+  assert.equal(balance.net_liquidation_value, 42);
+  const balanceColumns = db.prepare('PRAGMA table_info(balance_snapshots)').all();
+  const positionColumns = db.prepare('PRAGMA table_info(position_snapshots)').all();
+  assert.equal(balanceColumns.some((column) => column.name === 'raw_json'), false);
+  assert.equal(positionColumns.some((column) => column.name === 'raw_json'), false);
   db.close();
 });

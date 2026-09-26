@@ -4,6 +4,13 @@ An application that hooks up to the Webull API to serve data to a front-end dash
 ## Plan
 finish rough version (get it to work), then do v2 going by standards
 
+## TODO
+- Test lastest changes tomorrow
+    - Need to actually review codex changes, starting in app.js
+- implement front-end
+	- Brainstorm what the front-end should look like
+
+
 ## Road map
 Version 1 of this application should have the following:
 

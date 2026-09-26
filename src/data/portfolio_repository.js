@@ -8,7 +8,12 @@ export class PortfolioRepository {
     const parameters = accountId === null ? [] : [accountId];
     return this.db.prepare(`
       WITH ranked AS (
-        SELECT source_id, account_id, collected_at, currency, total_value, run_id,
+        SELECT source_id, account_id, collected_at, currency,
+          COALESCE(
+            net_liquidation_value,
+            COALESCE(cash_balance, 0) + COALESCE(market_value, 0)
+          ) AS total_value,
+          run_id,
           ROW_NUMBER() OVER (
             PARTITION BY source_id, account_id ORDER BY collected_at DESC, run_id DESC
           ) AS row_number
@@ -49,7 +54,12 @@ export class PortfolioRepository {
 
     return this.db.prepare(`
       WITH bucketed AS (
-        SELECT source_id, account_id, currency, total_value, collected_at,
+        SELECT source_id, account_id, currency,
+          COALESCE(
+            net_liquidation_value,
+            COALESCE(cash_balance, 0) + COALESCE(market_value, 0)
+          ) AS total_value,
+          collected_at,
           ${bucketExpression} AS bucket_at,
           ROW_NUMBER() OVER (
             PARTITION BY ${bucketExpression}, source_id, account_id

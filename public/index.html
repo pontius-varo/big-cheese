@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Big Cheese investment dashboard">
+    <meta name="theme-color" content="#090d0b">
+    <title>Big Cheese · Portfolio</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Big Cheese dashboard home">
+          <span class="brand-mark" aria-hidden="true">BC</span>
+          <span>
+            <strong>Big Cheese</strong>
+            <small>Portfolio overview</small>
+          </span>
+        </a>
+        <div class="header-actions">
+          <span id="last-updated" class="last-updated">Waiting for data</span>
+          <button id="refresh-button" class="button" type="button"
+            title="Reload the latest data stored by the worker">
+            <span class="refresh-icon" aria-hidden="true">↻</span> Reload data
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="portfolio-title">
+          <div>
+            <p class="eyebrow">Portfolio value</p>
+            <h1 id="portfolio-title">Big Cheese Be Big Nigga</h1>
+            <p class="hero-copy">Balances, allocation, and performance across every connected account.</p>
+          </div>
+          <div id="summary-totals" class="summary-totals" aria-live="polite">
+            <div class="skeleton skeleton-value"></div>
+          </div>
+        </section>
+
+        <div id="notice" class="notice" role="status" hidden></div>
+
+        <section class="dashboard-grid">
+          <article class="panel history-panel" aria-labelledby="history-heading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Performance</p>
+                <h2 id="history-heading">Value over time</h2>
+              </div>
+              <div class="segmented" aria-label="History interval">
+                <button class="segment active" type="button" data-bucket="hour">Hourly</button>
+                <button class="segment" type="button" data-bucket="day">Daily</button>
+              </div>
+            </div>
+            <div id="history-chart" class="chart" aria-live="polite"></div>
+          </article>
+
+          <article class="panel account-panel" aria-labelledby="accounts-heading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Connected accounts</p>
+                <h2 id="accounts-heading">Accounts</h2>
+              </div>
+              <span id="account-count" class="count-badge">0</span>
+            </div>
+            <div id="account-list" class="account-list" aria-live="polite"></div>
+          </article>
+
+          <article class="panel composition-panel" aria-labelledby="composition-heading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Allocation</p>
+                <h2 id="composition-heading">Account composition</h2>
+              </div>
+              <span id="selected-account" class="selected-account">Select an account</span>
+            </div>
+            <div id="composition" aria-live="polite">
+              <div class="empty-state">
+                <span aria-hidden="true">◒</span>
+                <p>Choose an account to explore its positions.</p>
+              </div>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <footer>
+        <span>Big Cheese</span>
+        <span>Data is for informational purposes only.</span>
+      </footer>
+    </div>
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
